@@ -12,7 +12,9 @@ curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o 
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-sudo apt-get --yes install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo apt-get --yes install docker-ce docker-ce-cli containerd.io git
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.12.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
 BASE
 
 # Configuring Docker
@@ -23,11 +25,21 @@ sudo systemctl enable docker.service
 sudo service docker start
 DOCKER
 
+# Cloning repo and building containers
+$build = <<BUILD
+sudo rm -rf django-DefectDojo
+sudo git clone -b dev https://github.com/Jackie-Tan/django-DefectDojo.git && cd django-DefectDojo
+docker/setEnv.sh dev
+./dc-build.sh
+./dc-up.sh postgres-redis
+BUILD
+
 Vagrant.configure("2") do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://vagrantcloud.com/search.
   config.vm.box = "ubuntu/focal64"
+  config.vm.boot_timeout = 600
   config.vm.provider "virtualbox" do |vb|
     vb.customize ["modifyvm", :id, "--uart1", "0x3F8", "4"]
     vb.customize ["modifyvm", :id, "--uartmode1", "file", File::NULL]
@@ -35,6 +47,7 @@ Vagrant.configure("2") do |config|
   config.vm.network :forwarded_port, guest: 8080, host: 8080
   config.vm.provision :shell, inline: $base
   config.vm.provision :shell, inline: $docker
+  config.vm.provision :shell, inline: $build
   # config.vm.box_version = ""
   # config.vm.box_url = ""
 
